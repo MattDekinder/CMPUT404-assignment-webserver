@@ -1,5 +1,4 @@
 #  coding: utf-8 
-import SocketServer
 
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos
 # 
@@ -26,13 +25,40 @@ import SocketServer
 
 # try: curl -v -X GET http://127.0.0.1:8080/
 
+import SocketServer, os
 
 class MyWebServer(SocketServer.BaseRequestHandler):
+
+    def handle_GET(self):
+        #I should guard against requests with relative pathing eg ..\..\someimportantfile.secret
+        basedir = os.getcwd()+'/www'
+        request_dir = basedir + self.request_line[1]
+
+        if request_dir.endswith('/'):
+            request_dir += 'index.html'
+
+        file = open(request_dir)
+
+        self.request.sendall(file.read()) #this has to be made into a proper http packet with this data now. 
+        
     
     def handle(self):
         self.data = self.request.recv(1024).strip()
         print ("Got a request of: %s\n" % self.data)
-        self.request.sendall("OK")
+
+        #parse data
+        parsed = self.data.split('\r\n') #split into an array of lines
+        self.request_line = parsed[0].split() #now a list (method, directory, htmlversion)
+
+        #determine if we can handle request (only GET for now) and send '405 Method Not Allowed' for other cases
+        if self.request_line[0] == 'GET':
+            self.handle_GET()
+        else:
+            #return '405 Method Not Allowed'
+            return
+        
+        
+    
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
