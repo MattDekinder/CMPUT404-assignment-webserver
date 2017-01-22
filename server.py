@@ -25,7 +25,7 @@
 
 # try: curl -v -X GET http://127.0.0.1:8080/
 
-import SocketServer, os, mimetypes
+import SocketServer, os, mimetypes, sys
 import datetime
 
 class MyWebServer(SocketServer.BaseRequestHandler):
@@ -34,13 +34,18 @@ class MyWebServer(SocketServer.BaseRequestHandler):
         #I should guard against requests with relative pathing eg ..\..\someimportantfile.secret
         basedir = os.getcwd()+'/www'
         request_dir = basedir + self.request_line[1]
+        header = 'http/1.1 200 OK\r\n' #assume that we will be sending a response packet
 
         if request_dir.endswith('/'):
             request_dir += 'index.html'
 
-        file = open(request_dir)
+        if os.path.isfile(request_dir):
+            file = open(request_dir)
+        else:
+            file = open(basedir+'/404.html')
+            request_dir = basedir+'/404.html'
+            header = 'http/1.1 404 Not Found\r\n' #send a 404 packet
 
-        #self.request.sendall(file.read()) #this has to be made into a proper http packet with this data now. 
         mimetypes.init()
         
         mtype = mimetypes.MimeTypes()
@@ -56,7 +61,7 @@ class MyWebServer(SocketServer.BaseRequestHandler):
         #\r\n
         #<the file>
 
-        resp_packet = 'http/1.1 200 OK\r\n' + \
+        resp_packet = header + \
             'Date: '+str(datetime.datetime.now())+'\r\n'+\
             'Connection: close\r\n'+\
             'Server: mattServer\r\n'+\
@@ -73,7 +78,7 @@ class MyWebServer(SocketServer.BaseRequestHandler):
     
     def handle(self):
         self.data = self.request.recv(1024).strip()
-        print ("Got a request of: %s\n" % self.data)
+        #print ("Got a request of: %s\n" % self.data)
 
         #parse data
         parsed = self.data.split('\r\n') #split into an array of lines
