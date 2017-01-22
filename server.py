@@ -25,7 +25,8 @@
 
 # try: curl -v -X GET http://127.0.0.1:8080/
 
-import SocketServer, os
+import SocketServer, os, mimetypes
+import datetime
 
 class MyWebServer(SocketServer.BaseRequestHandler):
 
@@ -39,7 +40,35 @@ class MyWebServer(SocketServer.BaseRequestHandler):
 
         file = open(request_dir)
 
-        self.request.sendall(file.read()) #this has to be made into a proper http packet with this data now. 
+        #self.request.sendall(file.read()) #this has to be made into a proper http packet with this data now. 
+        mimetypes.init()
+        
+        mtype = mimetypes.MimeTypes()
+        filetype, endcoding = mtype.guess_type(request_dir)
+
+        #response packet: 
+        #http/1.1 200 OK\r\n
+        #Date: <the date>\r\n
+        #Connection: close\r\n
+        #Server: mattServer\r\n
+        #Content-Type: filetype\r\n
+        #Content-Length: <bytest in file>\r\n
+        #\r\n
+        #<the file>
+
+        resp_packet = 'http/1.1 200 OK\r\n' + \
+            'Date: '+str(datetime.datetime.now())+'\r\n'+\
+            'Connection: close\r\n'+\
+            'Server: mattServer\r\n'+\
+            'Content-Type: '+filetype+'\r\n'+\
+            'Content-Length: '+ str(os.path.getsize(request_dir))+'\r\n'+\
+            '\r\n'+\
+            file.read()
+
+
+        self.request.sendall(resp_packet)
+
+        file.close()
         
     
     def handle(self):
