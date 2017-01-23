@@ -34,32 +34,32 @@ class MyWebServer(SocketServer.BaseRequestHandler):
         #I should guard against requests with relative pathing eg ..\..\someimportantfile.secret
         basedir = os.getcwd()+'/www'
         request_dir = basedir + self.request_line[1]
-        header = 'http/1.1 200 OK\r\n' #assume that we will be sending a response packet
+        header = 'HTTP/1.1 200 OK\r\n' #assume that we will be sending a 200 response packet
 
         if request_dir.endswith('/'):
-            request_dir += 'index.html'
+            request_dir += 'index.html' #if this is a directory, we want the index.
+        #TODO: handle 302 moved if the user is requesting a directory with no '/'. Currently that should just serve a 404
 
+        #get the file if it exists or serve a 404
         if os.path.isfile(request_dir):
             file = open(request_dir)
+            os.path.realpath(file.name)
         else:
             file = open(basedir+'/404.html')
             request_dir = basedir+'/404.html'
-            header = 'http/1.1 404 Not Found\r\n' #send a 404 packet
+            header = 'HTTP/1.1 404 Not Found\r\n' #send a 404 packet
+
+        #make sure we only serve out of www/
+        if basedir not in os.path.realpath(request_dir):
+            #we have someone trying to access something outside of /www/
+            file.close()
+            file = open(basedir+'/404.html')
+            request_dir = basedir+'/404.html'
+            header = 'HTTP/1.1 404 Not Found\r\n' #send a 404 packet
 
         mimetypes.init()
-        
         mtype = mimetypes.MimeTypes()
         filetype, endcoding = mtype.guess_type(request_dir)
-
-        #response packet: 
-        #http/1.1 200 OK\r\n
-        #Date: <the date>\r\n
-        #Connection: close\r\n
-        #Server: mattServer\r\n
-        #Content-Type: filetype\r\n
-        #Content-Length: <bytest in file>\r\n
-        #\r\n
-        #<the file>
 
         resp_packet = header + \
             'Date: '+str(datetime.datetime.now())+'\r\n'+\
@@ -70,17 +70,38 @@ class MyWebServer(SocketServer.BaseRequestHandler):
             '\r\n'+\
             file.read()
 
+        file.close()
 
         self.request.sendall(resp_packet)
 
+
+    def send_405(self):
+        basedir = os.getcwd()+'/www'
+        request_dir = basedir+'/405.html'
+        file = open(request_dir)
+
+        mimetypes.init()
+        mtype = mimetypes.MimeTypes()
+        filetype, endcoding = mtype.guess_type(request_dir)
+
+        resp_packet = 'HTTP/1.1 405 Method Not Allowed\r\n' + \
+            'Date: '+str(datetime.datetime.now())+'\r\n'+\
+            'Connection: close\r\n'+\
+            'Server: mattServer\r\n'+\
+            'Content-Type: '+filetype+'\r\n'+\
+            'Content-Length: '+ str(os.path.getsize(request_dir))+'\r\n'+\
+            '\r\n'+\
+            file.read()
+
         file.close()
+
+        self.request.sendall(resp_packet)
         
-    
+
     def handle(self):
         self.data = self.request.recv(1024).strip()
-        #print ("Got a request of: %s\n" % self.data)
 
-        #parse data
+        #parse request data
         parsed = self.data.split('\r\n') #split into an array of lines
         self.request_line = parsed[0].split() #now a list (method, directory, htmlversion)
 
@@ -88,8 +109,7 @@ class MyWebServer(SocketServer.BaseRequestHandler):
         if self.request_line[0] == 'GET':
             self.handle_GET()
         else:
-            #return '405 Method Not Allowed'
-            return
+            self.send_405()
         
         
     
